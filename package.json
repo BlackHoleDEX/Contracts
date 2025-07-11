@@ -1,0 +1,25 @@
+{
+  "dependencies": {
+    "@cryptoalgebra/integral-base-plugin": "~1.2.1",
+    "@cryptoalgebra/integral-core": "~1.2.1",
+    "@cryptoalgebra/integral-farming": "~1.2.1",
+    "@cryptoalgebra/integral-periphery": "~1.2.1",
+    "@nomiclabs/hardhat-etherscan": "^3.1.6",
+    "@nomiclabs/hardhat-waffle": "^2.0.5",
+    "@nomiclabs/hardhat-web3": "^2.0.0",
+    "@openzeppelin/contracts": "^4.9.6",
+    "@openzeppelin/contracts-upgradeable": "^4.8.0",
+    "@openzeppelin/hardhat-upgrades": "^1.22.1",
+    "@openzeppelin/test-helpers": "^0.5.16",
+    "@openzeppelin/upgrades-core": "^1.42.1",
+    "@safe-global/api-kit": "^3.0.2",
+    "@safe-global/protocol-kit": "^6.0.5",
+    "@safe-global/safe-ethers-lib": "^1.9.4",
+    "@safe-global/types-kit": "^2.0.1",
+    "bignumber.js": "^9.3.0",
+    "chai": "^4.3.7",
+    "dotenv": "^16.4.7",
+    "hardhat": "^2.12.7",
+    "solc": "^0.8.13"
+  }
+}
