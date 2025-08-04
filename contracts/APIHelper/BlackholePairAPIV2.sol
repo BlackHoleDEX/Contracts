@@ -21,8 +21,6 @@ import '../interfaces/IAlgebraPoolAPIStorage.sol';
 
 import '../interfaces/IAlgebraCLFactory.sol';
 
-
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import '@cryptoalgebra/integral-periphery/contracts/interfaces/IQuoterV2.sol';
 import '@cryptoalgebra/integral-core/contracts/interfaces/IAlgebraPool.sol';
 
@@ -30,7 +28,7 @@ import "hardhat/console.sol";
 
 import {BlackTimeLibrary} from "../libraries/BlackTimeLibrary.sol";
 
-contract BlackholePairAPIV2 is Initializable {
+contract BlackholePairAPIV2 {
 
     struct pairInfo {
         // pair info
@@ -178,12 +176,8 @@ contract BlackholePairAPIV2 is Initializable {
     event WBF(address oldWBF, address newWBF);
     event swapped(address pairAddress);
 
-    constructor() {}
+    constructor(address _voter, address _router, address _gaugeManager, address _pairFactory, address _algebraFactory, address _quoterV2, address _algebraPoolAPIStorage) {
 
-
-    function initialize(address _voter, address _router, address _gaugeManager, address _pairFactory, address _algebraFactory, address _quoterV2, address _algebraPoolAPIStorage) initializer public {
-
-  
         owner = msg.sender;
 
         voter = IVoter(_voter);

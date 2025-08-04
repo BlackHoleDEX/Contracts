@@ -19,7 +19,7 @@ import '@cryptoalgebra/integral-periphery/contracts/interfaces/ISwapRouter.sol';
 import './interfaces/IERC20.sol';
 import './interfaces/IPair.sol';
 import './interfaces/IRouterHelper.sol';
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/IRouter.sol";
 import "./interfaces/IPairFactory.sol";
 
@@ -53,7 +53,7 @@ interface IWETH {
 // Experimental Extension [ftm.guru/solidly/BaseV1Router02]
 // contract BaseV1Router02 is BaseV1Router01
 // with Support for Fee-on-Transfer Tokens
-contract RouterV2 is OwnableUpgradeable{
+contract RouterV2 is Ownable {
 
 	using Math for uint;
 
@@ -109,10 +109,7 @@ contract RouterV2 is OwnableUpgradeable{
         _;
     }
 
-    function initialize(    
-        address _factory, address _wETH, address _swapRouter, address _algebraFactory, address _algebraPoolAPIStorage, address _routerHelper
-    ) public initializer {
-        __Ownable_init();
+    constructor(address _factory, address _wETH, address _swapRouter, address _algebraFactory, address _algebraPoolAPIStorage, address _routerHelper) {
         factory = _factory;
         wETH = IWETH(_wETH);
         swapRouter = _swapRouter;
