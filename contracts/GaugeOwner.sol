@@ -28,7 +28,7 @@ contract GaugeOwner is IGaugeOwner, Ownable {
     }
 
     function setInternalBribe(address _gauge, address _int) external onlyOwner {
-        IGaugeV2(_gauge).setInternalBribe(_int);
+        // Not updating InternalBribe once it's set
     }
 
     function activateEmergencyMode(address _gauge) external onlyOwner {
@@ -40,8 +40,6 @@ contract GaugeOwner is IGaugeOwner, Ownable {
     }
 
     function secureGenesisPool(address _gauge) external onlyOwner {
-        IGaugeV2(_gauge).setGenesisPoolManager(address(this));
-        IGaugeV2(_gauge).setGenesisPool(address(0));
-        IGaugeV2(_gauge).setGenesisPoolManager(address(0));
+        // Not updating GenesisPool once it's set
     }
 }
