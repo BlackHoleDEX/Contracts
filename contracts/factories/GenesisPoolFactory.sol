@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.13;
 
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import '../interfaces/IGenesisPoolFactory.sol';
 import '../GenesisPool.sol';
 import '../interfaces/IGenesisPool.sol';
 import '../interfaces/ITokenHandler.sol';
 
-contract GenesisPoolFactory is IGenesisPoolFactory, OwnableUpgradeable {
+contract GenesisPoolFactory is IGenesisPoolFactory {
 
     address public genesisManager;
     address public tokenHandler;
@@ -23,11 +22,7 @@ contract GenesisPoolFactory is IGenesisPoolFactory, OwnableUpgradeable {
         _;
     }
 
-    constructor() {}
-
-    function initialize(address _tokenHandler) public initializer {
-        __Ownable_init();
-
+    constructor(address _tokenHandler) {
         genesisManager = msg.sender;
         tokenHandler = _tokenHandler;
     }

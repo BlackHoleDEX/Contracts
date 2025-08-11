@@ -3,8 +3,6 @@ pragma solidity 0.8.13;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
 import "./interfaces/IGenesisPoolManager.sol";
 import "./interfaces/IGaugeManager.sol";
@@ -27,7 +25,7 @@ interface IBaseV1Factory {
     function setGenesisStatus(address _pair, bool status) external;
 }
 
-contract GenesisPoolManager is IGenesisPoolBase, IGenesisPoolManager, OwnableUpgradeable, ReentrancyGuardUpgradeable {
+contract GenesisPoolManager is IGenesisPoolBase, IGenesisPoolManager, Ownable {
 
     uint256 public MIN_DURATION;
     uint256 public MIN_THRESHOLD;
@@ -80,12 +78,7 @@ contract GenesisPoolManager is IGenesisPoolBase, IGenesisPoolManager, OwnableUpg
         _;
     }
 
-    constructor() {}
-
-    function initialize(address _epochController, address _router, address _permissionRegistory, address _gaugeManager, address _pairFactory, address _genesisFactory, address _auctionFactory, address _tokenHandler) initializer  public {
-        __Ownable_init();
-        __ReentrancyGuard_init();
-
+    constructor(address _epochController, address _router, address _permissionRegistory, address _gaugeManager, address _pairFactory, address _genesisFactory, address _auctionFactory, address _tokenHandler) {
         epochController = _epochController;
         router = _router;
         permissionRegistory = _permissionRegistory;
@@ -118,7 +111,7 @@ contract GenesisPoolManager is IGenesisPoolBase, IGenesisPoolManager, OwnableUpg
         return liveNativeTokens.length;
     }
 
-    function depositNativeToken(address nativeToken, uint auctionIndex, GenesisInfo calldata genesisPoolInfo, TokenAllocation calldata allocationInfo) external nonReentrant returns(address genesisPool) {
+    function depositNativeToken(address nativeToken, uint auctionIndex, GenesisInfo calldata genesisPoolInfo, TokenAllocation calldata allocationInfo) external returns(address genesisPool) {
         address _sender = msg.sender;
         require(whiteListedTokensToUser[nativeToken][_sender] || _checkGovernance(), "!WHITELIST");
         require(nativeToken == genesisPoolInfo.nativeToken, "IA");
@@ -188,7 +181,7 @@ contract GenesisPoolManager is IGenesisPoolBase, IGenesisPoolManager, OwnableUpg
         IGenesisPool(genesisPool).approvePool(pairAddress);
     }
 
-    function depositToken(address genesisPool, uint256 amount) external nonReentrant{
+    function depositToken(address genesisPool, uint256 amount) external{
         require(amount > 0, "ZV");
         require(genesisPool != address(0), "ZA");
 
