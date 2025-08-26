@@ -150,7 +150,9 @@ contract GenesisPoolManager is IGenesisPoolBase, IGenesisPoolManager, Ownable {
             nativeTokens.push(nativeToken);
             isNativeToken[nativeToken] = true;
         }
-        IGenesisPool(genesisPool).setGenesisPoolInfo(genesisPoolInfo, allocationInfo, auction);
+        GenesisInfo memory modifiedGenesisInfo = genesisPoolInfo;
+        modifiedGenesisInfo.maturityTime = MATURITY_TIME; //The maturity time should be the value present in the GenesisPoolManager.
+        IGenesisPool(genesisPool).setGenesisPoolInfo(modifiedGenesisInfo, allocationInfo, auction);
     }
 
     function rejectGenesisPool(address nativeToken) external Governance {

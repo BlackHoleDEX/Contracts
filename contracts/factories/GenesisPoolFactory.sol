@@ -2,11 +2,12 @@
 pragma solidity 0.8.13;
 
 import '../interfaces/IGenesisPoolFactory.sol';
+import "@openzeppelin/contracts/access/Ownable.sol";
 import '../GenesisPool.sol';
 import '../interfaces/IGenesisPool.sol';
 import '../interfaces/ITokenHandler.sol';
 
-contract GenesisPoolFactory is IGenesisPoolFactory {
+contract GenesisPoolFactory is IGenesisPoolFactory, Ownable {
 
     address public genesisManager;
     address public tokenHandler;
@@ -27,7 +28,7 @@ contract GenesisPoolFactory is IGenesisPoolFactory {
         tokenHandler = _tokenHandler;
     }
 
-    function setGenesisManager(address _genesisManager) external onlyManager {
+    function setGenesisManager(address _genesisManager) external onlyOwner {
         emit GenesisManagerChanged(genesisManager, _genesisManager);
         genesisManager = _genesisManager;
     }
