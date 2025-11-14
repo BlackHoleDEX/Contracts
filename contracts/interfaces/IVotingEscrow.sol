@@ -67,4 +67,11 @@ interface IVotingEscrow {
     function smNFTBalance() external view returns (uint);
     function calculate_sm_nft_bonus(uint amount) external view returns (uint);
     function calculate_original_sm_nft_amount(uint amount) external view returns (uint);
+    function split(uint _from, uint _amount) external returns (uint256 _tokenId1, uint256 _tokenId2);
+    function setArtProxy(address _proxy) external;
+    function setVoter(address _voter) external;
+    function setAVM(address _avm) external;
+    function setSmNFTBonus(uint _bonus) external;
+    function setTeam(address _team) external;
+    function toggleSplit(address _account, bool _bool) external;
 }
