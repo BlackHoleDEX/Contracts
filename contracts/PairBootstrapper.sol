@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT OR GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.13;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -99,7 +99,7 @@ contract PairBootstrapper is Ownable {
     // -------- BASIC (V2-style) --------
     function _getMinimumLiquidity(uint amount0, uint amount1, uint decimals0, uint decimals1) internal pure returns (uint) {
         uint totalLiquidity = Math.sqrt(amount0 * amount1);
-         // We need minimum reserves to satisfy:
+        // We need minimum reserves to satisfy:
         // _x >= 1e14 where _x = minReserve0 * 1e18 / decimals0
         // _y >= 1e14 where _y = minReserve1 * 1e18 / decimals1
 
@@ -123,23 +123,25 @@ contract PairBootstrapper is Ownable {
         (address t0, address t1) = sortTokens(p.tokenA, p.tokenB);
 
         // Since this is a new pair, reserves are always 0
-        amountA = p.amountADesired;
-        amountB = p.amountBDesired;
+        // Sort amounts to match sorted token order
+        bool tokensSwapped = p.tokenA > p.tokenB;
+        amountA = tokensSwapped ? p.amountBDesired : p.amountADesired;
+        amountB = tokensSwapped ? p.amountADesired : p.amountBDesired;
         require(amountA > 0 && amountB > 0, "SLP");
         pair = pairFactory.getPair(t0, t1, p.stable);
         require(pair == address(0), "PE"); // Pair Exists
 
 
         // Create the pair
-        pair = pairFactory.createPair(p.tokenA, p.tokenB, p.stable);
+        pair = pairFactory.createPair(t0, t1, p.stable);
 
-        
+
         {
             // Read token decimals from pair metadata (for min liquidity calc)
             (uint dec0, uint dec1, , , , , ) = IPair(pair).metadata();
             // Transfer tokens directly from user to pair
-            IERC20(p.tokenA).transferFrom(msg.sender, pair, amountA);
-            IERC20(p.tokenB).transferFrom(msg.sender, pair, amountB);
+            IERC20(t0).safeTransferFrom(msg.sender, pair, amountA);
+            IERC20(t1).safeTransferFrom(msg.sender, pair, amountB);
             // Mint LP to this contract, then enforce minimum burn and forward remainder to user
             liquidity = IPair(pair).mint(address(this));
 
@@ -153,7 +155,7 @@ contract PairBootstrapper is Ownable {
                 require(shortfall <= liquidity, "IL"); // Insufficient Liquidity to meet minimum burn
                 // Burn the shortfall to meet minimum liquidity requirement
                 IERC20(pair).transfer(address(0), shortfall);
-                liquidity -= shortfall;
+                liquidity = liquidity - shortfall;
             }
             // Forward remaining LP to recipient
             if (liquidity > 0) {
@@ -161,7 +163,7 @@ contract PairBootstrapper is Ownable {
             }
         }
 
-        emit BasicPairCreatedAndSeeded(pair, p.tokenA, p.tokenB, p.stable, liquidity, amountA, amountB, p.to);
+        emit BasicPairCreatedAndSeeded(pair, t0, t1, p.stable, liquidity, amountA, amountB, p.to);
     }
 
     // -------- CONCENTRATED LIQUIDITY (Algebra) --------
@@ -186,9 +188,9 @@ contract PairBootstrapper is Ownable {
         address recipient,
         uint256 deadline
     ) private returns (MintOutput memory mo, TickRange memory t) {
-        IERC20(token0).transferFrom(msg.sender, address(this), amounts.amount0Desired);
+        IERC20(token0).safeTransferFrom(msg.sender, address(this), amounts.amount0Desired);
         IERC20(token0).forceApprove(address(nfpm), amounts.amount0Desired);
-        IERC20(token1).transferFrom(msg.sender, address(this), amounts.amount1Desired);
+        IERC20(token1).safeTransferFrom(msg.sender, address(this), amounts.amount1Desired);
         IERC20(token1).forceApprove(address(nfpm), amounts.amount1Desired);
         amounts.amount0Desired = IERC20(token0).balanceOf(address(this));
         amounts.amount1Desired = IERC20(token1).balanceOf(address(this));
