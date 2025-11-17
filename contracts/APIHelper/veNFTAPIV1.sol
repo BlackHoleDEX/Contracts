@@ -287,56 +287,45 @@ contract veNFTAPIV1 is Initializable {
     //     }
     // }
 
-    function getAllPairRewards(address _user, uint _amounts, uint _offset) external view returns(uint totNFTs, bool hasNext, LockReward[] memory _lockReward){
-        
+   function getAllPairRewards(address _user, uint _lockBatchSize, uint _lockOffset, uint _gaugeBatchSize, uint _gaugeOffset) external view returns(LockReward[] memory _lockReward){
+
         if(_user == address(0)){
 
-            return (totNFTs, hasNext, _lockReward);
+            return (_lockReward);
         }
-        veNFT[] memory avmNFTsOfUser = getAVMNFTFromAddress(_user);
+        uint startLockIndex = _lockOffset;
+        uint endLockIndex = _lockOffset + _lockBatchSize;
+        uint totNFTs = ve.balanceOf(_user);
+        endLockIndex = (endLockIndex < totNFTs) ? endLockIndex : totNFTs;
 
-        totNFTs = ve.balanceOf(_user);
+        _lockReward = new LockReward[](endLockIndex - startLockIndex);
 
-        uint length = _amounts < (totNFTs + avmNFTsOfUser.length) ? _amounts : (totNFTs + avmNFTsOfUser.length); 
-        _lockReward = new LockReward[](length);
-
-
-        // int length = avmNFTsOfUser.length;
-
-        uint i = _offset;
         uint256 nftId;
-        hasNext = true;
 
-        for(i; i < _offset + _amounts; i++){ // need to be amounts right
-            if(i >= (totNFTs + avmNFTsOfUser.length)) {
-                hasNext = false;
-                break;
-            }
-            if(i < totNFTs) {
-                nftId = ve.tokenOfOwnerByIndex(_user, i);
-            } else {
-                uint avmIndex = i - totNFTs;
-                nftId = avmNFTsOfUser[avmIndex].id;
-            }
-
-            _lockReward[i-_offset].id = nftId;
-            _lockReward[i-_offset].lockedAmount = uint128(ve.locked(nftId).amount);
-            _lockReward[i-_offset].pairRewards = _getRewardsForNft(nftId);
+        for(uint i = startLockIndex; i < endLockIndex; i++){
+            nftId = ve.tokenOfOwnerByIndex(_user, i);   
+            _lockReward[i-startLockIndex].id = nftId;
+            _lockReward[i-startLockIndex].lockedAmount = uint128(ve.locked(nftId).amount);
+            (_lockReward[i-startLockIndex].pairRewards) = _getRewardsForNft(nftId, _gaugeBatchSize, _gaugeOffset);
         }
-
-        totNFTs += avmNFTsOfUser.length;
-    }  
-
-    function _getRewardsForNft(uint nftId) internal view returns (PairReward[] memory pairReward) {
+    }
+    function _getRewardsForNft(uint nftId, uint _gaugeBatchSize, uint _gaugeOffset) internal view returns (PairReward[] memory pairReward) {
         uint basicPoolGaugeLength = gaugeFactory.length();
         uint clPoolGaugeLength = gaugeFactoryCL.length();
+        
+        // Calculate the actual range to process
+        uint startIdx = _gaugeOffset;
+        uint endIdx = _gaugeOffset + _gaugeBatchSize;
+        
+        // Check if there are more gauges beyond this batch and cap endIdx
+        endIdx = (endIdx < basicPoolGaugeLength + clPoolGaugeLength) ? endIdx : (basicPoolGaugeLength + clPoolGaugeLength);
         uint maxPairRewardCount = 0;
-        PairReward[] memory _pairRewards = new PairReward[](basicPoolGaugeLength + clPoolGaugeLength);
-        Reward[] memory _rewardData; 
+        PairReward[] memory _pairRewards = new PairReward[](endIdx - startIdx);
+        Reward[] memory _rewardData;
         bool hasReward;
         address poolAddress;
 
-        for(uint i=0; i<basicPoolGaugeLength + clPoolGaugeLength; i++){
+        for(uint i = startIdx; i < endIdx; i++){
             if(i >= basicPoolGaugeLength){
                 poolAddress = IGaugeManager(gaugeManager).poolForGauge(gaugeFactoryCL.gauges(i-basicPoolGaugeLength));
                 (_rewardData, hasReward) = _pairReward(poolAddress, nftId, gaugeFactoryCL.gauges(i-basicPoolGaugeLength));
@@ -345,7 +334,7 @@ contract veNFTAPIV1 is Initializable {
                 poolAddress = IGaugeManager(gaugeManager).poolForGauge(gaugeFactory.gauges(i));
                 (_rewardData, hasReward) = _pairReward(poolAddress, nftId, gaugeFactory.gauges(i));
             }
-            
+
             if(hasReward)
             {
                 _pairRewards[maxPairRewardCount].pair = poolAddress;
