@@ -15,7 +15,6 @@ import '../interfaces/IGaugeFactory.sol';
 import '../interfaces/IGaugeFactoryCL.sol';
 
 
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "../AVM/interfaces/IAutoVotingEscrowManager.sol";
 import {BlackTimeLibrary} from "../libraries/BlackTimeLibrary.sol";
 
@@ -37,7 +36,7 @@ interface IPairAPI {
     function pair_factory() external view returns(address);
 }
 
-contract veNFTAPIV1 is Initializable {
+contract veNFTAPIV1 {
 
     struct LockInfo {
         address owner;
@@ -115,7 +114,7 @@ contract veNFTAPIV1 is Initializable {
    
     uint256 constant public MAX_RESULTS = 1000;
     uint256 constant public MAX_PAIRS = 30;
-    uint256 public WEEK; 
+    uint256 public immutable WEEK;
 
     IVoter public voter;
     IGaugeManager public gaugeManager;
@@ -138,9 +137,8 @@ contract veNFTAPIV1 is Initializable {
     struct AllPairRewards {
         Reward[] rewards;
     }
-    constructor() {}
 
-    function initialize(address _voter, address _rewarddistro, address _gaugeFactory, address _gaugeFactoryCL, address _gaugeManager) initializer public {
+    constructor(address _voter, address _rewarddistro, address _gaugeFactory, address _gaugeFactoryCL, address _gaugeManager) {
         owner = msg.sender;
         voter = IVoter(_voter);
         rewardDisitributor = IRewardsDistributor(_rewarddistro);
