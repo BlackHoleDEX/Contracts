@@ -15,8 +15,8 @@ import "./libraries/Math.sol";
 interface ICustomPoolDeployer {
     function createCustomPool(
         address creator,
-        address tokenA,
-        address tokenB,
+        address token0,
+        address token1,
         bytes calldata data,
         uint160 initialPrice
     ) external returns (address customPool);
@@ -27,12 +27,13 @@ interface ICustomPoolDeployer {
 contract PairBootstrapper is Ownable {
     using SafeERC20 for IERC20;
     struct CreateBasicParams {
-        address tokenA;
-        address tokenB;
+        address token0;
+        address token1;
         bool stable;
-        uint amountADesired;
-        uint amountBDesired;
+        uint amount0Desired;
+        uint amount1Desired;
         address to;
+        uint256 deadline;
     }
 
     struct CreateCLParams {
@@ -72,7 +73,7 @@ contract PairBootstrapper is Ownable {
 
     mapping(address => bool) public authorizedAccounts;
 
-    event BasicPairCreatedAndSeeded(address indexed pair, address indexed tokenA, address indexed tokenB, bool stable, uint liquidity, uint amountAUsed, uint amountBUsed, address to);
+    event BasicPairCreatedAndSeeded(address indexed pair, address indexed token0, address indexed token1, bool stable, uint liquidity, uint amount0Used, uint amount1Used, address to);
     event CLPoolCreatedAndSeeded(address indexed pool, address deployer, int24 spacing, address indexed token0, address indexed token1, uint256 tokenId, uint128 liquidity, uint256 amount0Used, uint256 amount1Used, address recipient);
     event AuthorizedAccountAdded(address indexed account);
     event AuthorizedAccountRemoved(address indexed account);
@@ -118,16 +119,17 @@ contract PairBootstrapper is Ownable {
         return Math.max(minLiquidity0, minLiquidity1);
     }
 
-    function createBasicPairAndAddLiquidity(CreateBasicParams calldata p) external onlyAuthorized returns (address pair, uint amountA, uint amountB, uint liquidity) {
+    function createBasicPairAndAddLiquidity(CreateBasicParams calldata p) external onlyAuthorized returns (address pair, uint amount0, uint amount1, uint liquidity) {
+        require(p.deadline >= block.timestamp, "EXP");
         // Check if pair already exists - revert if it does
-        (address t0, address t1) = sortTokens(p.tokenA, p.tokenB);
+        (address t0, address t1) = sortTokens(p.token0, p.token1);
 
         // Since this is a new pair, reserves are always 0
         // Sort amounts to match sorted token order
-        bool tokensSwapped = p.tokenA > p.tokenB;
-        amountA = tokensSwapped ? p.amountBDesired : p.amountADesired;
-        amountB = tokensSwapped ? p.amountADesired : p.amountBDesired;
-        require(amountA > 0 && amountB > 0, "SLP");
+        bool tokensSwapped = p.token0 > p.token1;
+        amount0 = tokensSwapped ? p.amount1Desired : p.amount0Desired;
+        amount1 = tokensSwapped ? p.amount0Desired : p.amount1Desired;
+        require(amount0 > 0 && amount1 > 0, "SLP");
         pair = pairFactory.getPair(t0, t1, p.stable);
         require(pair == address(0), "PE"); // Pair Exists
 
@@ -140,44 +142,48 @@ contract PairBootstrapper is Ownable {
             // Read token decimals from pair metadata (for min liquidity calc)
             (uint dec0, uint dec1, , , , , ) = IPair(pair).metadata();
             // Transfer tokens directly from user to pair
-            IERC20(t0).safeTransferFrom(msg.sender, pair, amountA);
-            IERC20(t1).safeTransferFrom(msg.sender, pair, amountB);
+            IERC20(t0).safeTransferFrom(msg.sender, pair, amount0);
+            IERC20(t1).safeTransferFrom(msg.sender, pair, amount1);
             // Mint LP to this contract, then enforce minimum burn and forward remainder to user
             liquidity = IPair(pair).mint(address(this));
 
             // Determine minimum liquidity required
             uint minimumLiquidity = p.stable
-                ? _getMinimumLiquidity(amountA, amountB, dec0, dec1)
+                ? _getMinimumLiquidity(amount0, amount1, dec0, dec1)
                 : MINIMUM_LIQUIDITY;
             uint burned = IERC20(pair).balanceOf(address(0));
             if (burned < minimumLiquidity) {
                 uint shortfall = minimumLiquidity - burned;
                 require(shortfall <= liquidity, "IL"); // Insufficient Liquidity to meet minimum burn
                 // Burn the shortfall to meet minimum liquidity requirement
-                IERC20(pair).transfer(address(0), shortfall);
+                IERC20(pair).safeTransfer(address(0), shortfall);
                 liquidity = liquidity - shortfall;
             }
             // Forward remaining LP to recipient
             if (liquidity > 0) {
-                IERC20(pair).transfer(p.to, liquidity);
+                IERC20(pair).safeTransfer(p.to, liquidity);
             }
         }
 
-        emit BasicPairCreatedAndSeeded(pair, t0, t1, p.stable, liquidity, amountA, amountB, p.to);
+        emit BasicPairCreatedAndSeeded(pair, t0, t1, p.stable, liquidity, amount0, amount1, p.to);
     }
 
     // -------- CONCENTRATED LIQUIDITY (Algebra) --------
 
     function _clAmounts(CreateCLParams memory p) private pure returns (DepositAmounts memory depositAmts) {
         bool tokensSwapped = p.token0 > p.token1;
-        depositAmts.amount0Desired = tokensSwapped ? p.amount1Desired : p.amount0Desired;
-        depositAmts.amount1Desired = tokensSwapped ? p.amount0Desired : p.amount1Desired;
+        depositAmts = DepositAmounts({
+            amount0Desired: tokensSwapped ? p.amount1Desired : p.amount0Desired,
+            amount1Desired: tokensSwapped ? p.amount0Desired : p.amount1Desired
+        });
     }
 
     function _tickRange(address deployer) private view returns (TickRange memory t) {
-        t.spacing = ICustomPoolDeployer(deployer).tickSpacing();
-        t.tickLower = int24((MIN_TICK / t.spacing) * t.spacing);
-        t.tickUpper = int24((MAX_TICK / t.spacing) * t.spacing);
+        t = TickRange({
+            spacing: ICustomPoolDeployer(deployer).tickSpacing(),
+            tickLower: int24((MIN_TICK / t.spacing) * t.spacing),
+            tickUpper: int24((MAX_TICK / t.spacing) * t.spacing)
+        });
     }
 
     function _mintCLFull(
@@ -209,13 +215,24 @@ contract PairBootstrapper is Ownable {
             recipient: recipient,
             deadline: deadline
         });
+        mo = MintOutput({
+            tokenId: 0,
+            liquidity: 0,
+            amount0: 0,
+            amount1: 0
+        });
         (mo.tokenId, mo.liquidity, mo.amount0, mo.amount1) = nfpm.mint(mp);
     }
 
 
-    function createCLPoolAndAddFullRange(CreateCLParams calldata p_) external onlyAuthorized returns (address pool, uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1) {
-        require(p_.deadline >= block.timestamp, "EXP");
-        CreateCLParams memory p = p_;
+    function createCLPoolAndAddFullRange(CreateCLParams calldata pIn) external onlyAuthorized returns (address pool, uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1) {
+        /*
+        The following copy is to fix  - Stack too deep issue
+        Else compile issue is coming at lines wherever input param is directly used.
+        */
+        CreateCLParams memory p = pIn;
+
+        require(p.deadline >= block.timestamp, "EXP");
         (address token0, address token1) = sortTokens(p.token0, p.token1);
         pool = algebraFactory.customPoolByPair(p.deployer, token0, token1);
         require(pool == address(0), "PE");
@@ -235,10 +252,10 @@ contract PairBootstrapper is Ownable {
             p.deadline
         );
         if (IERC20(token0).balanceOf(address(this)) > 0) {
-            IERC20(token0).transfer(msg.sender, IERC20(token0).balanceOf(address(this)));
+            IERC20(token0).safeTransfer(msg.sender, IERC20(token0).balanceOf(address(this)));
         }
         if (IERC20(token1).balanceOf(address(this)) > 0) {
-            IERC20(token1).transfer(msg.sender, IERC20(token1).balanceOf(address(this)));
+            IERC20(token1).safeTransfer(msg.sender, IERC20(token1).balanceOf(address(this)));
         }
         emit CLPoolCreatedAndSeeded(pool, p.deployer, t.spacing, token0, token1, mo.tokenId, mo.liquidity, mo.amount0, mo.amount1, p.recipient);
         return (pool, mo.tokenId, mo.liquidity, mo.amount0, mo.amount1);
