@@ -179,10 +179,11 @@ contract PairBootstrapper is Ownable {
     }
 
     function _tickRange(address deployer) private view returns (TickRange memory t) {
+        int24 tickSpacing = ICustomPoolDeployer(deployer).tickSpacing();
         t = TickRange({
-            spacing: ICustomPoolDeployer(deployer).tickSpacing(),
-            tickLower: int24((MIN_TICK / t.spacing) * t.spacing),
-            tickUpper: int24((MAX_TICK / t.spacing) * t.spacing)
+            spacing: tickSpacing,
+            tickLower: int24((MIN_TICK / tickSpacing) * tickSpacing),
+            tickUpper: int24((MAX_TICK / tickSpacing) * tickSpacing)
         });
     }
 
