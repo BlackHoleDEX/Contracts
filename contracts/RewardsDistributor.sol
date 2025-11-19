@@ -190,12 +190,12 @@ contract RewardsDistributor is IRewardsDistributor {
             uint user_epoch = _find_timestamp_user_epoch(ve, _tokenId, week_cursor + WEEK - 1, max_user_epoch);
             IVotingEscrow.Point memory user_point = IVotingEscrow(ve).user_point_history(_tokenId, user_epoch);
             int128 dt = int128(int256(week_cursor + WEEK - 1 - user_point.ts));
-            uint balance_of = Math.max(uint(int256(user_point.bias - dt * user_point.slope + int256(user_point.permanent + user_point.smNFT + user_point.smNFTBonus))), 0);
+            int128 veBalanceAtTime = user_point.bias - dt * user_point.slope;
+            uint balance_of = uint(int256(((veBalanceAtTime > 0) ? int256(veBalanceAtTime) : int256(0)) + int256(user_point.permanent + user_point.smNFT + user_point.smNFTBonus)));
             //uint balance_of = IVotingEscrow(ve).balanceOfNFTAt(_tokenId, week_cursor + WEEK - 1);
             supply = ve_supply[week_cursor + WEEK - 1];
             //supply = IVotingEscrow(ve).totalSupplyAtT(week_cursor + WEEK - 1);
-            supply = supply == 0 ? 1 : supply;
-            to_distribute += balance_of * tokens_per_week[week_cursor] / supply;
+            if(supply > 0) to_distribute += balance_of * tokens_per_week[week_cursor] / supply;
             week_cursor += WEEK;
         }
         time_cursor_of[_tokenId] = week_cursor;
@@ -228,12 +228,12 @@ contract RewardsDistributor is IRewardsDistributor {
             uint user_epoch = _find_timestamp_user_epoch(ve, _tokenId, week_cursor + WEEK - 1, max_user_epoch);
             IVotingEscrow.Point memory user_point = IVotingEscrow(ve).user_point_history(_tokenId, user_epoch);
             int128 dt = int128(int256(week_cursor + WEEK - 1 - user_point.ts));
-            uint balance_of = Math.max(uint(int256(user_point.bias - dt * user_point.slope + int256(user_point.permanent + user_point.smNFT + user_point.smNFTBonus))), 0);
+            int128 veBalanceAtTime = user_point.bias - dt * user_point.slope;
+            uint balance_of = uint(int256(((veBalanceAtTime > 0) ? int256(veBalanceAtTime) : int256(0)) + int256(user_point.permanent + user_point.smNFT + user_point.smNFTBonus)));
             //uint balance_of = IVotingEscrow(ve).balanceOfNFTAt(_tokenId, week_cursor + WEEK - 1);
             supply = ve_supply[week_cursor + WEEK -1];
             //supply = IVotingEscrow(ve).totalSupplyAtT(week_cursor + WEEK - 1);
-            supply = supply == 0 ? 1 : supply;
-            to_distribute += balance_of * tokens_per_week[week_cursor] / supply;
+            if(supply > 0) to_distribute += balance_of * tokens_per_week[week_cursor] / supply;
             week_cursor += WEEK;
         }
 
