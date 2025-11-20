@@ -121,7 +121,8 @@ contract RewardsDistributor is IRewardsDistributor {
                 if (supplyCheckpointTime > pt.ts) {
                     dt = int128(int256(supplyCheckpointTime - pt.ts));
                 }
-                ve_supply[supplyCheckpointTime] = Math.max(uint(int256(pt.bias - pt.slope * dt) + int256(pt.permanent + pt.smNFT + pt.smNFTBonus)), 0);
+                int128 veBalanceAtTime = pt.bias - dt * pt.slope;
+                ve_supply[supplyCheckpointTime] = uint(((veBalanceAtTime > 0) ? int256(veBalanceAtTime) : int256(0)) + int256(pt.permanent + pt.smNFT + pt.smNFTBonus));
             }
             t += WEEK;
         }
@@ -191,7 +192,7 @@ contract RewardsDistributor is IRewardsDistributor {
             IVotingEscrow.Point memory user_point = IVotingEscrow(ve).user_point_history(_tokenId, user_epoch);
             int128 dt = int128(int256(week_cursor + WEEK - 1 - user_point.ts));
             int128 veBalanceAtTime = user_point.bias - dt * user_point.slope;
-            uint balance_of = uint(int256(((veBalanceAtTime > 0) ? int256(veBalanceAtTime) : int256(0)) + int256(user_point.permanent + user_point.smNFT + user_point.smNFTBonus)));
+            uint balance_of = uint(((veBalanceAtTime > 0) ? int256(veBalanceAtTime) : int256(0)) + int256(user_point.permanent + user_point.smNFT + user_point.smNFTBonus));
             //uint balance_of = IVotingEscrow(ve).balanceOfNFTAt(_tokenId, week_cursor + WEEK - 1);
             supply = ve_supply[week_cursor + WEEK - 1];
             //supply = IVotingEscrow(ve).totalSupplyAtT(week_cursor + WEEK - 1);
@@ -229,7 +230,7 @@ contract RewardsDistributor is IRewardsDistributor {
             IVotingEscrow.Point memory user_point = IVotingEscrow(ve).user_point_history(_tokenId, user_epoch);
             int128 dt = int128(int256(week_cursor + WEEK - 1 - user_point.ts));
             int128 veBalanceAtTime = user_point.bias - dt * user_point.slope;
-            uint balance_of = uint(int256(((veBalanceAtTime > 0) ? int256(veBalanceAtTime) : int256(0)) + int256(user_point.permanent + user_point.smNFT + user_point.smNFTBonus)));
+            uint balance_of = uint(((veBalanceAtTime > 0) ? int256(veBalanceAtTime) : int256(0)) + int256(user_point.permanent + user_point.smNFT + user_point.smNFTBonus));
             //uint balance_of = IVotingEscrow(ve).balanceOfNFTAt(_tokenId, week_cursor + WEEK - 1);
             supply = ve_supply[week_cursor + WEEK -1];
             //supply = IVotingEscrow(ve).totalSupplyAtT(week_cursor + WEEK - 1);
