@@ -21,12 +21,7 @@ contract VotingEscrowSplitHelper is Ownable {
     /// @notice Emitted when canSplit permission is updated
     event CanSplitUpdated(address indexed account, bool enabled);
 
-    /// @notice Modifier to validate non-zero address
-    modifier notZeroAddress(address _address) {
-        require(_address != address(0), "ZA");
-        _;
-    }
-    
+
     /// @notice Constructor
     /// @param _votingEscrow Address of the VotingEscrow contract
     constructor(address _votingEscrow) {
