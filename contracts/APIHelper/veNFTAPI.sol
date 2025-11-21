@@ -291,9 +291,12 @@ contract veNFTAPI {
 
             return (_lockReward);
         }
+        veNFT[] memory avmNFTsOfUser = getAVMNFTFromAddress(_user);
         uint startLockIndex = _lockOffset;
         uint endLockIndex = _lockOffset + _lockBatchSize;
-        uint totNFTs = ve.balanceOf(_user);
+        uint avmNFTsLength = avmNFTsOfUser.length;
+        uint veNFTsLength = ve.balanceOf(_user);
+        uint totNFTs = veNFTsLength + avmNFTsLength;
         endLockIndex = (endLockIndex < totNFTs) ? endLockIndex : totNFTs;
 
         _lockReward = new LockReward[](endLockIndex - startLockIndex);
@@ -301,7 +304,12 @@ contract veNFTAPI {
         uint256 nftId;
 
         for(uint i = startLockIndex; i < endLockIndex; i++){
-            nftId = ve.tokenOfOwnerByIndex(_user, i);
+            if(i < veNFTsLength) {
+                nftId = ve.tokenOfOwnerByIndex(_user, i);
+            } else {
+                uint avmIndex = i - veNFTsLength;
+                nftId = avmNFTsOfUser[avmIndex].id;
+            }
             _lockReward[i-startLockIndex].id = nftId;
             _lockReward[i-startLockIndex].lockedAmount = uint128(ve.locked(nftId).amount);
             (_lockReward[i-startLockIndex].pairRewards) = _getRewardsForNft(nftId, _gaugeBatchSize, _gaugeOffset);
