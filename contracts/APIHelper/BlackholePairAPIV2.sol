@@ -24,8 +24,6 @@ import '../interfaces/IAlgebraCLFactory.sol';
 import '@cryptoalgebra/integral-periphery/contracts/interfaces/IQuoterV2.sol';
 import '@cryptoalgebra/integral-core/contracts/interfaces/IAlgebraPool.sol';
 
-import "hardhat/console.sol";
-
 import {BlackTimeLibrary} from "../libraries/BlackTimeLibrary.sol";
 
 contract BlackholePairAPIV2 {
