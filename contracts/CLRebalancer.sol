@@ -46,6 +46,10 @@ contract CLRebalancer is ICLRebalancer, IERC721Receiver, ReentrancyGuard {
     //////////////////////////////////////////////////////////////*/
 
     constructor(address _nfpm, address _router, address _farmingCenter) {
+        require(_nfpm != address(0), "NFPM_ZERO_ADDRESS");
+        require(_router != address(0), "ROUTER_ZERO_ADDRESS");
+        require(_farmingCenter != address(0), "FARMING_CENTER_ZERO_ADDRESS");
+
         nfpm = INonfungiblePositionManager(_nfpm);
         router = IRouterSwap(_router);
         farmingCenter = IFarmingCenter(_farmingCenter);
@@ -77,12 +81,14 @@ contract CLRebalancer is ICLRebalancer, IERC721Receiver, ReentrancyGuard {
         (address token0, address token1) =
             _withdrawAndBurn(tokenId, address(this), params.decreaseAmount0Min, params.decreaseAmount1Min, params.deadline);
 
+        INonfungiblePositionManager.MintParams memory mintParams = params.mintParams;
+
+        require(mintParams.token0 == token0 && mintParams.token1 == token1, "MINT_TOKENS_MISMATCH");
+
         _trySwap(params);
 
         uint256 balance0 = IERC20(token0).balanceOf(address(this));
         uint256 balance1 = IERC20(token1).balanceOf(address(this));
-
-        INonfungiblePositionManager.MintParams memory mintParams = params.mintParams;
 
         mintParams.amount0Desired = balance0 < mintParams.amount0Desired ? balance0 : mintParams.amount0Desired;
 
