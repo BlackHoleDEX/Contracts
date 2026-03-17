@@ -14,4 +14,5 @@ interface IGaugeCL {
     function rewardRate() external view returns (uint);
     function rewardForDuration() external view returns (uint256);
     function stakedFees() external view returns (uint256, uint256);
+    function deposit(uint256 tokenId) external;
 }

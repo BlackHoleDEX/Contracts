@@ -19,6 +19,7 @@ interface IGaugeManager {
     function createGauge(address _pool, uint256 _gaugeType) external returns (address _gauge, address _internal_bribe, address _external_bribe);
     function gauges(address _pair) external view returns (address);
     function isGauge(address _gauge) external view returns (bool);
+    function isAlive(address _gauge) external view returns (bool);
     function poolForGauge(address _gauge) external view returns (address);
     function internal_bribes(address _gauge) external view returns (address);
     function external_bribes(address _gauge) external view returns (address);

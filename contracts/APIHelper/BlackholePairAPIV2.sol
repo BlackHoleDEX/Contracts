@@ -17,6 +17,7 @@ import '../interfaces/IGaugeManager.sol';
 import '../interfaces/IVotingEscrow.sol';
 import '../../contracts/Pair.sol';
 import '../interfaces/IRouter.sol';
+import '../interfaces/IRouterHelper.sol';
 import '../interfaces/IAlgebraPoolAPIStorage.sol';
 
 import '../interfaces/IAlgebraCLFactory.sol';
@@ -477,7 +478,7 @@ contract BlackholePairAPIV2 {
         swapRouteHelperData.minAmount = 0;
 
         //This is for direct Basic pool
-        (swapRouteHelperData.minAmount, stable) = IRouter(routerV2).getAmountOut(amountIn, tokenIn, tokenOut);
+        (swapRouteHelperData.minAmount, stable) = IRouterHelper(IRouter(routerV2).routerHelper()).getAmountOut(amountIn, tokenIn, tokenOut);
 
         if (swapRouteHelperData.minAmount > 0) {
             swapRouteHelperData._pair1 = pairFactory.getPair(tokenIn, tokenOut, stable);
@@ -739,7 +740,7 @@ contract BlackholePairAPIV2 {
         uint160 sqrtPriceAfter;
 
         if(isBasic){
-            amountOut = IRouter(routerV2).getPoolAmountOut(amountIn, tokenIn, pair);
+            amountOut = IPair(pair).getAmountOut(amountIn, tokenIn);
             sqrtPriceAfter = 0;
         }
         else{
