@@ -17,8 +17,6 @@ interface ICLRebalancer {
 
     event PositionRebalanced(uint256 oldTokenId, uint256 newTokenId);
 
-    event SwapExecuted(address indexed fromToken, address indexed toToken, uint256 amountIn, uint256 amountOut);
-
     event MintedPosition(uint256 indexed tokenId, address indexed recipient, uint256 amount0Used, uint256 amount1Used);
 
     event DustRefunded(address indexed user, address indexed token, uint256 amount);

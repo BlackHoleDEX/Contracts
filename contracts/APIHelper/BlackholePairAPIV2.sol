@@ -740,7 +740,7 @@ contract BlackholePairAPIV2 {
         uint160 sqrtPriceAfter;
 
         if(isBasic){
-            amountOut = IRouter(routerV2).getPoolAmountOut(amountIn, tokenIn, pair);
+            amountOut = IPair(pair).getAmountOut(amountIn, tokenIn);
             sqrtPriceAfter = 0;
         }
         else{

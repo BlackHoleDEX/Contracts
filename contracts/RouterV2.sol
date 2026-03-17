@@ -423,8 +423,13 @@ contract RouterV2 is ReentrancyGuard {
         bool approveMax, uint8 v, bytes32 r, bytes32 s
     ) external ensure(deadline) nonReentrant returns (uint amountToken, uint amountETH) {
         _getPairAndCheckPermit(token, address(wETH), stable, liquidity, deadline, approveMax, v, r, s);
-        (amountToken, amountETH) = removeLiquidityETHSupportingFeeOnTransferTokens(
-            token, stable, liquidity, amountTokenMin, amountETHMin, to, deadline
+        (amountToken, amountETH) = _removeLiquidityETHSupportingFeeOnTransferTokens(
+            token,
+            stable,
+            liquidity,
+            amountTokenMin,
+            amountETHMin,
+            to
         );
     }
     
@@ -626,36 +631,40 @@ contract RouterV2 is ReentrancyGuard {
      */
     function zapAndRemoveCL(
         IZapRouterHelper.ZapRemoveCLParams calldata p
-    ) external ensure(p.deadline) returns (uint256 amountOut) {
+    ) external ensure(p.deadline) returns (uint256) {
         INonfungiblePositionManager nfpm = IZapRouterHelper(zapRouterHelper).nfpm();
-        if (nfpm.ownerOf(p.tokenId) != msg.sender) revert NOT_AUTHORIZED();
+        // Allow both owner and approved operators 
+        if (!nfpm.isApprovedOrOwner(msg.sender, p.tokenId)) revert NOT_AUTHORIZED();
+        require(nfpm.isApprovedOrOwner(address(this), p.tokenId), "NOT_APPROVED");
         // Get token addresses from position
         (, , address token0, address token1, , , , , , , , ) = nfpm.positions(p.tokenId);
         bool isZapRequired = p.swaps.length > 0 && p.outputToken != address(0);
-        address recipient = isZapRequired ? zapRouterHelper : p.to;
         
-        require(nfpm.isApprovedOrOwner(address(this), p.tokenId), "NOT_APPROVED");
-        nfpm.safeTransferFrom(msg.sender, routerHelper, p.tokenId);
+        {
+            address recipient = isZapRequired ? zapRouterHelper : p.to;
+            address owner = nfpm.ownerOf(p.tokenId);
+            nfpm.safeTransferFrom(owner, routerHelper, p.tokenId);
+            uint deadline = p.deadline;
 
-        IRouterHelper(routerHelper)
-            .unstakeAndWithdraw(p.tokenId, p.liquidity, p.amount0Min, p.amount1Min, recipient, msg.sender, p.deadline);
-        if (isZapRequired) {    
-            // Swap two tokens to single output
-            address[] memory tokens = _pair(token0, token1);
-            amountOut = IZapRouterHelper(zapRouterHelper).zapToSingleToken(
-                IZapRouterHelper.ZapToSingleTokenParams({
-                    inputTokens: tokens,
-                    amounts: new uint256[](0), // Not used
-                    outputToken: p.outputToken,
-                    swaps: p.swaps,
-                    minAmountOut: p.minAmountOut,
-                    unwrapWETH: p.unwrapWETH,
-                    usenative: false,
-                    deadline: p.deadline,
-                    to: p.to
-                })
-            );
+            IRouterHelper(routerHelper)
+                .unstakeAndWithdraw(p.tokenId, p.liquidity, p.amount0Min, p.amount1Min, recipient, owner, deadline);
         }
+        if (!isZapRequired)  return 0;
+        // Swap two tokens to single output
+        address[] memory tokens = _pair(token0, token1);
+        return IZapRouterHelper(zapRouterHelper).zapToSingleToken(
+            IZapRouterHelper.ZapToSingleTokenParams({
+                inputTokens: tokens,
+                amounts: new uint256[](0), // Not used
+                outputToken: p.outputToken,
+                swaps: p.swaps,
+                minAmountOut: p.minAmountOut,
+                unwrapWETH: p.unwrapWETH,
+                usenative: false,
+                deadline: p.deadline,
+                to: p.to
+            })
+        );
     }
 
     /**

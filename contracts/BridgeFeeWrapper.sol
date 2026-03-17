@@ -5,6 +5,9 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+
+
 // Interface for LayerZero bridge contract
 interface ILayerZeroBridge {
     struct SendParam {
@@ -43,6 +46,12 @@ interface ILayerZeroBridge {
         SendParam calldata _sendParam,
         bool _payInLzToken
     ) external view returns (MessagingFee memory msgFee);
+
+    /**
+     * @notice Whether this OFT/bridge implementation requires ERC20 approvals
+     * @dev For OFT tokens that burn on send, this typically returns false.
+     */
+    function approvalRequired() external view returns (bool);
 }
 
 /**
@@ -51,7 +60,7 @@ interface ILayerZeroBridge {
  * @dev Can handle multiple tokens on the same chain. Users approve tokens to this contract.
  *      Bridge addresses are passed as parameters - no registration required.
  */
-contract BridgeFeeWrapper is Ownable {
+contract BridgeFeeWrapper is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     
     // Custom errors
@@ -60,6 +69,7 @@ contract BridgeFeeWrapper is Ownable {
     error InvalidTokenAddress();
     error InvalidBridgeAddress();
     error BridgedAmountZero();
+    error MinAmountExceedsBridgedAmount(uint256 minAmountLD, uint256 bridgedAmount);
     
     // Mapping: token address -> fee basis points (0 means use default)
     mapping(address => uint256) public tokenFeeBasisPoints;
@@ -87,6 +97,7 @@ contract BridgeFeeWrapper is Ownable {
         uint256 feeAmount,
         uint256 bridgedAmount
     );
+    event DustRefunded(address indexed user, address indexed token, uint256 amount);
 
     /**
      * @param _feeRecipient The address that will receive collected fees
@@ -151,6 +162,9 @@ contract BridgeFeeWrapper is Ownable {
      * @dev Works with both OFT tokens and OFT adapters:
      *      - OFT Token: _token == _bridgeContract (token is the bridge)
      *      - OFT Adapter: _token != _bridgeContract (adapter wraps the token)
+     *      For shared-decimals OFTs the bridge may debit less than the requested amount
+     *      (rounded down). Any such dust is refunded to the caller and no longer accumulates
+     *      in the wrapper.
      */
     function send(
         address _token,
@@ -158,7 +172,7 @@ contract BridgeFeeWrapper is Ownable {
         ILayerZeroBridge.SendParam calldata _sendParam,
         ILayerZeroBridge.MessagingFee calldata _fee,
         address _refundAddress
-    ) external payable returns (ILayerZeroBridge.MessagingReceipt memory msgReceipt, ILayerZeroBridge.OFTReceipt memory oftReceipt) {
+    ) external payable nonReentrant returns (ILayerZeroBridge.MessagingReceipt memory msgReceipt, ILayerZeroBridge.OFTReceipt memory oftReceipt) {
         if (_token == address(0)) revert InvalidTokenAddress();
         if (_bridgeContract == address(0)) revert InvalidBridgeAddress();
         
@@ -174,19 +188,22 @@ contract BridgeFeeWrapper is Ownable {
             emit FeeCollected(_token, feeAmount, feeRecipient);
         }
         
-        // Transfer remaining amount to this contract, then approve bridge contract to pull it
-        // For OFT tokens: _bridgeContract == _token (approving token itself)
-        // For OFT adapters: _bridgeContract != _token (approving adapter)
+        // Transfer remaining amount to this contract
+        // For OFT tokens: _bridgeContract == _token (token burns on send, no approval needed)
+        // For OFT adapters: _bridgeContract != _token (adapter pulls tokens via transferFrom)
         if (bridgedAmount == 0) revert BridgedAmountZero();
         IERC20(_token).safeTransferFrom(msg.sender, address(this), bridgedAmount);
-        IERC20(_token).safeApprove(_bridgeContract, bridgedAmount);
+        // Only approve if the bridge implementation requires approvals
+        if (bridgeContract.approvalRequired()) {
+            IERC20(_token).forceApprove(_bridgeContract, bridgedAmount);
+        }
         
         // Update send param with reduced amount
         ILayerZeroBridge.SendParam memory adjustedSendParam = _sendParam;
         adjustedSendParam.amountLD = bridgedAmount;
-        // Adjust minAmountLD to not exceed bridgedAmount
+        // Ensure user-provided minAmountLD can still be satisfied after fees
         if (adjustedSendParam.minAmountLD > bridgedAmount) {
-            adjustedSendParam.minAmountLD = bridgedAmount;
+            revert MinAmountExceedsBridgedAmount(adjustedSendParam.minAmountLD, bridgedAmount);
         }
         
         // Call the actual bridge contract's send function
@@ -196,8 +213,21 @@ contract BridgeFeeWrapper is Ownable {
             _refundAddress
         );
 
-        //reset approval
-        IERC20(_token).safeApprove(_bridgeContract, 0);
+        // Refund shared-decimals dust: bridge may debit less than bridgedAmount (rounded down
+        // to decimalConversionRate). Return the remainder to the user so it does not accumulate
+        // in the wrapper or become sweepable by the owner.
+        {
+            if (bridgedAmount > oftReceipt.amountSentLD) {
+                uint256 dust = bridgedAmount - oftReceipt.amountSentLD;
+                IERC20(_token).safeTransfer(msg.sender, dust);
+                emit DustRefunded(msg.sender, _token, dust);
+            }
+        }
+
+        // Reset approval if it was set
+        if (bridgeContract.approvalRequired()) {
+            IERC20(_token).forceApprove(_bridgeContract, 0);
+        }
         
         emit BridgeExecuted(
             msg.sender,
@@ -235,9 +265,9 @@ contract BridgeFeeWrapper is Ownable {
         
         ILayerZeroBridge.SendParam memory adjustedSendParam = _sendParam;
         adjustedSendParam.amountLD = bridgedAmount;
-        // Adjust minAmountLD to not exceed bridgedAmount
+        // Ensure user-provided minAmountLD can still be satisfied after fees
         if (adjustedSendParam.minAmountLD > bridgedAmount) {
-            adjustedSendParam.minAmountLD = bridgedAmount;
+            revert MinAmountExceedsBridgedAmount(adjustedSendParam.minAmountLD, bridgedAmount);
         }
         
         // Call the bridge contract's quoteSend

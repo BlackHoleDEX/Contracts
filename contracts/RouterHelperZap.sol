@@ -80,6 +80,8 @@ contract RouterHelperZap is IZapRouterHelper, ReentrancyGuard {
         uint256 amount1
     );
 
+    event StakeStatus(address indexed user, uint256 indexed tokenId, address indexed pool, address gauge, bool staked);
+
     event ZapToSingleToken(
         address indexed user,
         address indexed outputToken,
@@ -794,11 +796,15 @@ contract RouterHelperZap is IZapRouterHelper, ReentrancyGuard {
             p.token1
         );
         address gauge = gaugeManager.gauges(pool);
+        bool staked;
         // If gauge exists, deposit the NFT to enter farming
         if (gauge != address(0) && gaugeManager.isAlive(gauge)) {
             INonfungiblePositionManager(nfpm).approve(gauge, tokenId);
             IGaugeCL(gauge).deposit(tokenId);
+            staked = true;
         }
+
+        emit StakeStatus(recipient, tokenId, pool, gauge, staked);
 
         // Transfer the NFT to the recipient
         nfpm.safeTransferFrom(address(this), recipient, tokenId);

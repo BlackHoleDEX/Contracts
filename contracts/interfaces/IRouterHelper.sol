@@ -22,6 +22,21 @@ interface IRouterHelper {
 
     function quoteLiquidity(uint amountA, uint reserveA, uint reserveB) external pure returns (uint amountB);
 
+    function quoteAddLiquidity(
+        address tokenA,
+        address tokenB,
+        bool stable,
+        uint amountADesired,
+        uint amountBDesired
+    ) external view returns (uint amountA, uint amountB, uint liquidity);
+
+    function quoteRemoveLiquidity(
+        address tokenA,
+        address tokenB,
+        bool stable,
+        uint liquidity
+    ) external view returns (uint amountA, uint amountB);
+
     function swap(
         uint[] memory amounts,
         IRouter.route[] memory routes,
@@ -50,4 +65,6 @@ interface IRouterHelper {
         address sender,
         uint256 deadline
     ) external;
+
+    function version() external pure returns (string memory);
 }

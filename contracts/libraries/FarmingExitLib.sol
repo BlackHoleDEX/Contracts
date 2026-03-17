@@ -9,7 +9,12 @@ import "@cryptoalgebra/integral-periphery/contracts/interfaces/INonfungiblePosit
 
 library FarmingExitLib {
 
-    function exitAndClaim(IFarmingCenter farmingCenter, uint256 tokenId, address recipient) internal {
+    function _claimRewardsAndExitIfRequired(
+        IFarmingCenter farmingCenter,
+        uint256 tokenId,
+        address recipient,
+        bool shouldExit
+    ) internal {
         bytes32 incentiveId = farmingCenter.deposits(tokenId);
         if (incentiveId == bytes32(0)) return;
 
@@ -20,7 +25,9 @@ library FarmingExitLib {
 
         (uint256 reward, uint256 bonusReward) = farmingCenter.collectRewards(key, tokenId);
 
-        farmingCenter.exitFarming(key, tokenId);
+        if (shouldExit) {
+            farmingCenter.exitFarming(key, tokenId);
+        }
 
         farmingCenter.claimReward(rewardToken, recipient, reward);
         if (address(bonusToken) != address(0) && bonusReward > 0) {
@@ -28,9 +35,10 @@ library FarmingExitLib {
         }
     }
 
-    /// @notice Exits farming, decreases liquidity, collects tokens, then burns the NFT if no liquidity left or returns it to sender.
-    /// @param sender The address that sent the NFT to the contract. If it's complete withdrawal, claim emission in sender's account.
-    /// @param recipient The address that received the tokens and will receive the NFT back after rebalance. If it's complete withdrawal, it will receive the NFT.
+    /// @notice Claims farming rewards to `sender` and, for full withdrawals, exits farming; then decreases liquidity,
+    ///         collects tokens, and finally burns or returns the NFT depending on remaining liquidity.
+    /// @param sender The address that sent the NFT to the contract. Emissions are claimed to this address;
+    /// @param recipient The address that receives the tokens and will receive the NFT back after rebalance when liquidity remains.
     function unstakeAndWithdraw(
         IFarmingCenter farmingCenter,
         INonfungiblePositionManager nfpm,
@@ -44,9 +52,7 @@ library FarmingExitLib {
     ) internal {
         uint128 addedLiquidity;
         (,,,,,,, addedLiquidity,,,,) = nfpm.positions(tokenId);
-        if (addedLiquidity == liquidity) {
-            exitAndClaim(farmingCenter, tokenId, sender);
-        }
+        _claimRewardsAndExitIfRequired(farmingCenter, tokenId, sender, addedLiquidity == liquidity);
         decreaseLiquidityCollectAndFinalize(nfpm, tokenId, liquidity, amount0Min, amount1Min, recipient, sender, deadline);
     }
 
