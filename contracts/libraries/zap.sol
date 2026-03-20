@@ -63,8 +63,13 @@ library Zap {
 
         // Only execute callback if callbackData is provided
         if (callbackData.length > 0) {
-            (bool success, ) = address(this).call(callbackData);
-            if (!success) revert CF();
+            (bool success, bytes memory returndata) = address(this).call(callbackData);
+            if (!success) {
+                if (returndata.length == 0) revert CF();
+                assembly {
+                    revert(add(returndata, 32), mload(returndata))
+                }
+            }
         }
 
         // Cleanup: transfer remaining balances to dustRecipient
