@@ -1,21 +1,30 @@
 // SPDX-License-Identifier: MIT OR GPL-3.0-or-later
 pragma solidity ^0.8.13;
 
+import "@cryptoalgebra/integral-core/contracts/interfaces/plugin/IAlgebraDynamicFeePlugin.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import '@cryptoalgebra/integral-core/contracts/interfaces/IAlgebraPool.sol';
-import '@cryptoalgebra/integral-periphery/contracts/interfaces/INonfungiblePositionManager.sol';
+import '../interfaces/IAlgebraCLFactory.sol';
+import '../interfaces/IBribeAPI.sol';
 import '../interfaces/IERC20.sol';
 import '../interfaces/IGaugeCL.sol';
 import '../interfaces/IGaugeManager.sol';
 
 import '../interfaces/IVoter.sol';
-import '../interfaces/IAlgebraCLFactory.sol';
-import '../interfaces/IBribeAPI.sol';
 import '../interfaces/IVotingEscrow.sol';
+import '@cryptoalgebra/integral-core/contracts/interfaces/IAlgebraPool.sol';
+import '@cryptoalgebra/integral-core/contracts/libraries/Plugins.sol';
+import '@cryptoalgebra/integral-periphery/contracts/interfaces/INonfungiblePositionManager.sol';
 import {BlackTimeLibrary} from "../libraries/BlackTimeLibrary.sol";
 
 
 contract AlgebraPoolAPI is Initializable {
+
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
 
     IAlgebraCLFactory public algebraFactory;
     INonfungiblePositionManager public nonfungiblePositionManager;
@@ -190,7 +199,13 @@ contract AlgebraPoolAPI is Initializable {
         info.liquidity = pool.liquidity();
 
         // Read globalState (slot0)
-        (info.sqrtPriceX96, info.tick, info.fee, , , ) = pool.globalState();
+        uint8 pluginConfig;
+        (info.sqrtPriceX96, info.tick, , pluginConfig, , ) = pool.globalState();
+        if (Plugins.hasFlag(pluginConfig, Plugins.DYNAMIC_FEE)) {
+            info.fee = IAlgebraDynamicFeePlugin(pool.plugin()).getCurrentFee();
+        } else {
+            info.fee = pool.fee();
+        }
 
         // Read fee growth globals
         info.feeGrowthGlobal0X128 = pool.totalFeeGrowth0Token();

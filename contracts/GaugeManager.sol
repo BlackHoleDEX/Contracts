@@ -396,7 +396,8 @@ contract GaugeManager is OwnableUpgradeable, ReentrancyGuardUpgradeable {
                 } else {
                     (IncentiveKey memory incentivekey, uint256 rewardRate, uint128 bonusRewardRate) = 
                         IGaugeCL(_gauge).notifyRewardAmount(base, _claimable);
-                    IAlgebraEternalFarming(farmingParam.algebraEternalFarming).setRates(incentivekey, uint128(rewardRate), bonusRewardRate);
+                    address gaugeEternalFarming = IGaugeCL(_gauge).algebraEternalFarming();
+                    IAlgebraEternalFarming(gaugeEternalFarming).setRates(incentivekey, uint128(rewardRate), bonusRewardRate);
                 }
                 emit DistributeReward(msg.sender, _gauge, _claimable);
             }
