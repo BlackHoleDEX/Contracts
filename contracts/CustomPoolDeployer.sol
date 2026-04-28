@@ -5,14 +5,25 @@ import "@cryptoalgebra/integral-periphery/contracts/interfaces/IAlgebraCustomPoo
 import "@cryptoalgebra/integral-core/contracts/interfaces/IAlgebraPool.sol";
 import "@cryptoalgebra/integral-core/contracts/interfaces/vault/IAlgebraCommunityVault.sol";
 import "./interfaces/IAlgebraPoolAPIStorage.sol";
-import "./interfaces/IAlgebraFarmingProxyPluginFactory.sol";
 import "./interfaces/IAlgebraCustomVaultPoolEntryPoint.sol";
+import "./interfaces/IAlgebraBasePluginV1FactoryCustom.sol";
+import "@cryptoalgebra/integral-base-plugin/contracts/interfaces/plugins/IVolatilityOracle.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 contract CustomPoolDeployer is Initializable, OwnableUpgradeable {
     event AuthorizedAccountAdded(address indexed account);
     event AuthorizedAccountRemoved(address indexed account);
+    event CustomPoolCreated(address indexed creator, address indexed tokenA, address indexed tokenB, address customPool, address pluginAddress);
+    event SetPlugin(address indexed pool, address indexed newPlugin);
+    event SetPluginConfig(address indexed pool, uint8 newConfig);
+    event SetFee(address indexed pool, uint16 newFee);
+    event SetCommunityFee(address indexed pool, uint16 newCommunityFee);
+    event SetAlgebraFeeRecipient(address indexed oldRecipient, address indexed newRecipient);
+    event SetAlgebraFeeManager(address indexed oldManager, address indexed newManager);
+    event SetAlgebraFeeShare(uint16 oldFeeShare, uint16 newFeeShare);
+    event SetAlgebraFactory(address indexed oldAlgebraFactory, address indexed newAlgebraFactory);
+    event SetAlgebraPluginFactory(address indexed oldAlgebraPluginFactory, address indexed newAlgebraPluginFactory);
 
     address public entryPoint;
     address public plugin;
@@ -22,12 +33,14 @@ contract CustomPoolDeployer is Initializable, OwnableUpgradeable {
     address public algebraFeeManager;
     uint16 public algebraFeeShare;
 
-    address public algebraFarmingProxyPluginFactory;
     address public algebraFactory;
     address public algebraPluginFactory;
 
-    mapping(address => address) public poolToPlugin;
     mapping(address => bool) public authorizedAccounts;
+
+    // Calculated as: BEFORE_POSITION_MODIFY_FLAG(4) | AFTER_INIT_FLAG(64) | BEFORE_SWAP_FLAG(1) | AFTER_SWAP_FLAG(2) | BEFORE_FLASH_FLAG(16)
+    // Using numeric values since library references are not compile-time constants
+    uint8 public constant defaultPluginConfig = 87; // 87 in decimal (sum of all 5 flags)
 
     modifier onlyAuthorized() {
         require(
@@ -50,7 +63,6 @@ contract CustomPoolDeployer is Initializable, OwnableUpgradeable {
         address _algebraFeeRecipient,
         address _algebraFeeManager,
         uint16 _algebraFeeShare,
-        address _algebraFarmingProxyPluginFactory,
         address _algebraFactory,
         address _algebraPluginFactory
     ) public initializer {
@@ -63,7 +75,6 @@ contract CustomPoolDeployer is Initializable, OwnableUpgradeable {
         algebraFeeRecipient = _algebraFeeRecipient;
         algebraFeeManager = _algebraFeeManager;
         algebraFeeShare = _algebraFeeShare;
-        algebraFarmingProxyPluginFactory = _algebraFarmingProxyPluginFactory;
         algebraFactory = _algebraFactory;
         algebraPluginFactory = _algebraPluginFactory;
     }
@@ -115,17 +126,18 @@ contract CustomPoolDeployer is Initializable, OwnableUpgradeable {
         IAlgebraCommunityVault(vault).transferAlgebraFeeManagerRole(
             algebraFeeManager
         );
-        address newPluginAddress = IAlgebraFarmingProxyPluginFactory(
-            algebraFarmingProxyPluginFactory
-        ).createAlgebraProxyPlugin(
-                customPool,
-                algebraFactory,
-                algebraPluginFactory
-            );
+        address newPluginAddress = IAlgebraBasePluginV1FactoryCustom(algebraPluginFactory)
+            .createPluginForExistingCustomPool(tokenA, tokenB, address(this));
         IAlgebraCustomPoolEntryPoint(entryPoint).setPlugin(
             customPool,
             newPluginAddress
         );
+        IVolatilityOracle(newPluginAddress).initialize();
+        IAlgebraCustomPoolEntryPoint(entryPoint).setPluginConfig(
+            customPool,
+            defaultPluginConfig
+        );
+        emit CustomPoolCreated(creator, tokenA, tokenB, customPool, newPluginAddress);
     }
 
     function beforeCreatePoolHook(
@@ -144,13 +156,6 @@ contract CustomPoolDeployer is Initializable, OwnableUpgradeable {
         return;
     }
 
-    function setPluginForPool(
-        address pool,
-        address _plugin
-    ) external onlyAuthorized {
-        poolToPlugin[pool] = _plugin;
-    }
-
     // If we need new tick spacing, we'll use a new deployer
     // function setTickSpacing(address pool, int24 newTickSpacing) external {
     //     IAlgebraCustomPoolEntryPoint(entryPoint).setTickSpacing(pool, newTickSpacing);
@@ -164,6 +169,7 @@ contract CustomPoolDeployer is Initializable, OwnableUpgradeable {
             pool,
             newPluginAddress
         );
+        emit SetPlugin(pool, newPluginAddress);
     }
 
     function setPluginConfig(
@@ -174,42 +180,50 @@ contract CustomPoolDeployer is Initializable, OwnableUpgradeable {
             pool,
             newConfig
         );
+        emit SetPluginConfig(pool, newConfig);
     }
 
     function setFee(address pool, uint16 newFee) external onlyAuthorized {
         IAlgebraCustomPoolEntryPoint(entryPoint).setFee(pool, newFee);
+        emit SetFee(pool, newFee);
     }
 
     function setCommunityFee(address pool, uint16 newCommunityFee) external onlyAuthorized {
         IAlgebraCustomVaultPoolEntryPoint(entryPoint).setCommunityFee(pool, newCommunityFee);
+        emit SetCommunityFee(pool, newCommunityFee);
     }
 
     function setAlgebraFeeRecipient(address _newRecipient) external onlyOwner {
         require(_newRecipient != address(0), "zero address");
+        address oldRecipient = algebraFeeRecipient;
         algebraFeeRecipient = _newRecipient;
+        emit SetAlgebraFeeRecipient(oldRecipient, _newRecipient);
     }
 
     function setAlgebraFeeManager(address _newManager) external onlyOwner {
         require(_newManager != address(0), "zero address");
+        address oldManager = algebraFeeManager;
         algebraFeeManager = _newManager;
+        emit SetAlgebraFeeManager(oldManager, _newManager);
     }
 
     function setAlgebraFeeShare(uint16 _newFeeShare) external onlyOwner {
+        uint16 oldFeeShare = algebraFeeShare;
         algebraFeeShare = _newFeeShare;
-    }
-
-    function setAlgebraFarmingProxyPluginFactory(address _algebraFarmingProxyPluginFactory) external onlyOwner {
-        require(_algebraFarmingProxyPluginFactory != address(0), "zero address");
-        algebraFarmingProxyPluginFactory = _algebraFarmingProxyPluginFactory;
+        emit SetAlgebraFeeShare(oldFeeShare, _newFeeShare);
     }
 
     function setAlgebraFactory(address _algebraFactory) external onlyOwner {
         require(_algebraFactory != address(0), "zero address");
+        address oldAlgebraFactory = algebraFactory;
         algebraFactory = _algebraFactory;
+        emit SetAlgebraFactory(oldAlgebraFactory, _algebraFactory);
     }
 
     function setAlgebraPluginFactory(address _algebraPluginFactory) external onlyOwner {
         require(_algebraPluginFactory != address(0), "zero address");
+        address oldAlgebraPluginFactory = algebraPluginFactory;
         algebraPluginFactory = _algebraPluginFactory;
+        emit SetAlgebraPluginFactory(oldAlgebraPluginFactory, _algebraPluginFactory);
     }
 }
