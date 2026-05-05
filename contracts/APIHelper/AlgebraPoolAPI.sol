@@ -213,7 +213,7 @@ contract AlgebraPoolAPI is Initializable {
 
         IGaugeCL _gauge = IGaugeCL(gaugeManager.gauges(_pool));
 
-        info.gauge = gaugeManager.gauges(_pool);
+        info.gauge = address(_gauge);
 
         {
             if(address(_gauge) != address(0)){
@@ -416,14 +416,6 @@ contract AlgebraPoolAPI is Initializable {
         require(_owner != address(0), 'zeroAddr');
         owner = _owner;
         emit Owner(msg.sender, _owner);
-    }
-
-    function setVoter(address _voter) external {
-        require(msg.sender == owner, 'not owner');
-        require(_voter != address(0), 'zeroAddr');
-        address _oldVoter = address(voter);
-        voter = IVoter(_voter);
-        underlyingToken = IVotingEscrow(voter._ve()).token();
     }
 
     /// @notice Updates the Algebra Factory address (onlyOwner).

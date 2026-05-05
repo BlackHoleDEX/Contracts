@@ -16,4 +16,6 @@ interface IGaugeCL {
     function stakedFees() external view returns (uint256, uint256);
     function deposit(uint256 tokenId) external;
     function algebraEternalFarming() external view returns (address);
+    function external_bribe() external view returns (address);
+    function internal_bribe() external view returns (address);
 }

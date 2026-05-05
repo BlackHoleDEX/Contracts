@@ -69,14 +69,16 @@ contract GaugeManager is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     event GaugeRevived(address indexed gauge);
     event NotifyReward(address indexed sender, address indexed reward, uint256 amount);
     event DistributeReward(address indexed sender, address indexed gauge, uint256 amount);
-    event SetBribeFor(bool isInternal, address indexed old, address indexed latest, address indexed gauge);
     event SetMinter(address indexed old, address indexed latest);
     event SetBribeFactory(address indexed old, address indexed latest);
     event SetGenesisManager(address indexed old, address indexed latest);
     event SetPermissionRegistry(address indexed old, address indexed latest);
     mapping(address => uint256) public feeDistributionTimestmap;// gauge    => last Distribution Time
 
-    constructor() {}
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
 
     function initialize(address __ve, address _tokenHandler, address _gaugeFactory, address _gaugeFactoryCL, 
                         address _pairFactory, address _pairFactoryCL, address _permissionRegistory) initializer public {
@@ -483,38 +485,6 @@ contract GaugeManager is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         farmingParam = IGaugeManager.FarmingParam(_farmingCenter, _algebraEternalFarming, _nfpm);
     }
 
-      /// @notice Set a new bribes for a given gauge
-    function setNewBribes(address _gauge, address _internal, address _external) external GaugeAdmin {
-        require(isGauge[_gauge], "!GAUGE");
-        require(_gauge.code.length > 0, "CODELEN");
-        _setInternalBribe(_gauge, _internal);
-        _setExternalBribe(_gauge, _external);
-    }
-
-    /// @notice Set a new internal bribe for a given gauge
-    function setInternalBribeFor(address _gauge, address _internal) external GaugeAdmin {
-        require(isGauge[_gauge], "!GAUGE");
-        _setInternalBribe(_gauge, _internal);
-    }
-
-    /// @notice Set a new External bribe for a given gauge
-    function setExternalBribeFor(address _gauge, address _external) external GaugeAdmin {
-        require(isGauge[_gauge], "!GAUGE");
-        _setExternalBribe(_gauge, _external);
-    }
-
-    function _setInternalBribe(address _gauge, address _internal) private {
-        require(_internal.code.length > 0, "CODELEN");
-        emit SetBribeFor(true, internal_bribes[_gauge], _internal, _gauge);
-        internal_bribes[_gauge] = _internal;
-    }
-
-    function _setExternalBribe(address _gauge, address _external) private {
-        require(_external.code.length > 0, "CODELEN");
-        emit SetBribeFor(false, internal_bribes[_gauge], _external, _gauge);
-        external_bribes[_gauge] = _external;
-    }
-
     /// @notice claim LP gauge rewards
     function claimRewards(address[] memory _gauges) external {
         uint gaugesLen = _gauges.length;
@@ -541,11 +511,11 @@ contract GaugeManager is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     function fetchInternalBribeFromPool(address _pool) external returns (address) {
-        return internal_bribes[gauges[_pool]];
+        return IGaugeCL(gauges[_pool]).internal_bribe();
     }
 
     function fetchExternalBribeFromPool(address _pool) external returns (address) {
-        return external_bribes[gauges[_pool]];
+        return IGaugeCL(gauges[_pool]).external_bribe();
     }
 
     function isGaugeAliveForPool(address _pool) external returns (bool) {
