@@ -14,7 +14,6 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {BlackTimeLibrary} from "../libraries/BlackTimeLibrary.sol";
-import {MAX_REFERRAL_FEE_CAP} from '../libraries/Constants.sol';
 
 interface IGaugeCL {
     function activateEmergencyMode() external;
@@ -147,7 +146,7 @@ contract GaugeFactoryCL is IGaugeFactoryCL, OwnableUpgradeable {
     }
 
     function setReferralFee(uint256 _dibsFee) external onlyAllowed {
-        require(_dibsFee <= MAX_REFERRAL_FEE_CAP, "HFE");
+        require(_dibsFee <= 50, "HFE");
         dibsPercentage = _dibsFee;
     }
 
