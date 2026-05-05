@@ -15,4 +15,6 @@ interface IGauge {
     function setGenesisPool(address genesisPool) external;
     function depositsForGenesis(address tokenOwner, uint256 timestamp, uint256 liquidity) external;
     function emergency() external returns (bool);
+    function external_bribe() external view returns (address);
+    function internal_bribe() external view returns (address);
 }
