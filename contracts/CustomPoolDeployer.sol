@@ -40,7 +40,7 @@ contract CustomPoolDeployer is Initializable, OwnableUpgradeable {
 
     // Calculated as: BEFORE_POSITION_MODIFY_FLAG(4) | AFTER_INIT_FLAG(64) | BEFORE_SWAP_FLAG(1) | AFTER_SWAP_FLAG(2) | BEFORE_FLASH_FLAG(16)
     // Using numeric values since library references are not compile-time constants
-    uint8 public constant defaultPluginConfig = 87; // 87 in decimal (sum of all 5 flags)
+    uint8 public constant defaultPluginConfig = 87; // 87 in decimal (sum of above selected flags)
 
     modifier onlyAuthorized() {
         require(
@@ -160,17 +160,6 @@ contract CustomPoolDeployer is Initializable, OwnableUpgradeable {
     // function setTickSpacing(address pool, int24 newTickSpacing) external {
     //     IAlgebraCustomPoolEntryPoint(entryPoint).setTickSpacing(pool, newTickSpacing);
     // }
-
-    function setPlugin(
-        address pool,
-        address newPluginAddress
-    ) external onlyAuthorized {
-        IAlgebraCustomPoolEntryPoint(entryPoint).setPlugin(
-            pool,
-            newPluginAddress
-        );
-        emit SetPlugin(pool, newPluginAddress);
-    }
 
     function setPluginConfig(
         address pool,

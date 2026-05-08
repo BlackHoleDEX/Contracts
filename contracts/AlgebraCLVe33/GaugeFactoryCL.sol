@@ -15,7 +15,6 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {BlackTimeLibrary} from "../libraries/BlackTimeLibrary.sol";
 
-
 interface IGaugeCL {
     function activateEmergencyMode() external;
     function stopEmergencyMode() external;
@@ -37,9 +36,13 @@ contract GaugeFactoryCL is IGaugeFactoryCL, OwnableUpgradeable {
     address[] internal __gauges;
     address public dibs; // referral fee handler
     uint256 public dibsPercentage; // 0%
-    
+
     address public gaugeManager;
-    constructor() {}
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
 
     function initialize(address _permissionRegistry) initializer  public {
         __Ownable_init();   //after deploy ownership to multisig
@@ -62,9 +65,9 @@ contract GaugeFactoryCL is IGaugeFactoryCL, OwnableUpgradeable {
         algebraPoolAPIStorage = _algebraPoolAPIStorage;
     }
 
-    function createGauge(address _rewardToken,address _ve,address _pool,address _distribution, address _internal_bribe, address _external_bribe, bool _isPair, 
+    function createGauge(address _rewardToken,address _ve,address _pool,address _distribution, address _internal_bribe, address _external_bribe, bool _isPair,
                         IGaugeManager.FarmingParam memory farmingParam, address _bonusRewardToken) external onlyGaugeManager returns (address) {
-        
+
 
         createEternalFarming(_pool, farmingParam.algebraEternalFarming, _rewardToken, _bonusRewardToken);
         last_gauge = address(new GaugeCL(_rewardToken,_ve,_pool,_distribution,_internal_bribe,_external_bribe,_isPair, farmingParam, _bonusRewardToken, address(this)));
@@ -75,21 +78,21 @@ contract GaugeFactoryCL is IGaugeFactoryCL, OwnableUpgradeable {
     function createEternalFarming(address _pool, address _algebraEternalFarming, address _rewardToken, address _bonusRewardToken) internal {
         IAlgebraPool algebraPool = IAlgebraPool(_pool);
         uint24 tickSpacing = uint24(algebraPool.tickSpacing());
-        address pluginAddress = algebraPool.plugin();        
+        address pluginAddress = algebraPool.plugin();
         IncentiveKey memory incentivekey = getIncentiveKey(_rewardToken, _bonusRewardToken, _pool, _algebraEternalFarming);
         uint256 remainingTimeInCurrentEpoch = BlackTimeLibrary.epochNext(block.timestamp) - block.timestamp;
         uint8 tokenDecimals = IERC20Metadata(_rewardToken).decimals();
         uint128 reward = uint128((10**uint256(tokenDecimals))/(10**10) );
         // uint128 reward = 1e10;
         uint128 rewardRate = uint128(reward/remainingTimeInCurrentEpoch);
-        
+
         IERC20(_rewardToken).safeApprove(_algebraEternalFarming, reward);
         address customDeployer = IAlgebraPoolAPIStorage(algebraPoolAPIStorage).pairToDeployer(_pool);
-        
+
         // Set community fee to 1000 before creating eternal farming
         ICustomPoolDeployer(customDeployer).setCommunityFee(_pool, 1000);
-        
-        IAlgebraEternalFarming.IncentiveParams memory incentiveParams = 
+
+        IAlgebraEternalFarming.IncentiveParams memory incentiveParams =
             IAlgebraEternalFarming.IncentiveParams(reward, 0, rewardRate, 0, tickSpacing);
         IAlgebraEternalFarmingCustom(_algebraEternalFarming).createEternalFarming(incentivekey, incentiveParams, pluginAddress, customDeployer);
     }
@@ -143,6 +146,7 @@ contract GaugeFactoryCL is IGaugeFactoryCL, OwnableUpgradeable {
     }
 
     function setReferralFee(uint256 _dibsFee) external onlyAllowed {
+        require(_dibsFee <= 50, "HFE");
         dibsPercentage = _dibsFee;
     }
 
@@ -155,5 +159,5 @@ contract GaugeFactoryCL is IGaugeFactoryCL, OwnableUpgradeable {
         require(_gaugeManager != address(0), "ZA");
         gaugeManager = _gaugeManager;
     }
-    
+
 }
