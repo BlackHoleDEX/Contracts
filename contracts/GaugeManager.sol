@@ -564,7 +564,7 @@ contract GaugeManager is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     function version() external view returns (string memory version) {
-        version  = "GaugeManager v1.0.2";
+        version  = "GaugeManager v1.0.3";
     }
 
     function length() external view returns(uint) {
