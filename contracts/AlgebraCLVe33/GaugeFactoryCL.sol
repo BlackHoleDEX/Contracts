@@ -38,7 +38,7 @@ contract GaugeFactoryCL is IGaugeFactoryCL, OwnableUpgradeable {
     uint256 public dibsPercentage; // 0%
 
     address public gaugeManager;
-
+    uint16 public MAX_REFERRAL_FEE_CAP = 1000;
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();

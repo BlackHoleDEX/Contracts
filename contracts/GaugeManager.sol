@@ -192,7 +192,6 @@ contract GaugeManager is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         require(gauges[_pool] == address(0x0), "DNE");
         require(_pool.code.length > 0, "CODELEN");
         bool isPair;
-        address bonusRewardToken = bonusRewardToken;
         address _factory = _factoriesData.pairFactories[_gaugeType];
         address _gaugeFactory = _factoriesData.gaugeFactories[_gaugeType];
         require(_factory != address(0), "ZA");
@@ -564,7 +563,7 @@ contract GaugeManager is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     function version() external view returns (string memory version) {
-        version  = "GaugeManager v1.0.2";
+        version  = "GaugeManager v1.0.3";
     }
 
     function length() external view returns(uint) {
