@@ -127,7 +127,6 @@ abstract contract IGovernor is IERC165, IERC6372 {
     function hashProposal(
         address[] memory targets,
         uint256[] memory values,
-        bytes[] memory calldatas,
         bytes32 descriptionHash
     ) public pure virtual returns (uint256);
 
@@ -251,7 +250,6 @@ abstract contract IGovernor is IERC165, IERC6372 {
     function cancel(
         address[] memory targets,
         uint256[] memory values,
-        bytes[] memory calldatas,
         bytes32 descriptionHash
     ) public virtual returns (uint256 proposalId);
 

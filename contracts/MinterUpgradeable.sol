@@ -8,8 +8,6 @@ import "./interfaces/IBlack.sol";
 import "./interfaces/IGaugeManager.sol";
 import "./interfaces/IVotingEscrow.sol";
 
-import { IBlackGovernor } from "./interfaces/IBlackGovernor.sol";
-
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {BlackTimeLibrary} from "./libraries/BlackTimeLibrary.sol";
 
@@ -132,22 +130,16 @@ contract MinterUpgradeable is IMinter, OwnableUpgradeable {
         return rebaseAmount;
     }
     
-    function nudge() external {
+    function nudge(int256 deltaBps) external {
         address _epochGovernor = _gaugeManager.getBlackGovernor();
         require (msg.sender == _epochGovernor, "NA");
-        IBlackGovernor.ProposalState _state = IBlackGovernor(_epochGovernor).status();
         require (epochCount >= TAIL_START);
         uint256 _period = active_period;
         require (!proposals[_period]);
 
-        if (_state == IBlackGovernor.ProposalState.Succeeded) {
-            tailEmissionRate = PROPOSAL_INCREASE;
-        }
-        else if(_state == IBlackGovernor.ProposalState.Defeated) {
-            tailEmissionRate = PROPOSAL_DECREASE;
-        } else  {
-            tailEmissionRate = 10000;
-        }
+        int256 _nextTailEmissionRate = int256(MAX_BPS) + deltaBps;
+        require(_nextTailEmissionRate > 0, "invalid tail rate");
+        tailEmissionRate = uint256(_nextTailEmissionRate);
         proposals[_period] = true;
     }
 
