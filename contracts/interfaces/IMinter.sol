@@ -7,4 +7,5 @@ interface IMinter {
     function period() external view returns(uint);
     function active_period() external view returns(uint);
     function nudge() external;
+    function updateTailEmissionRate(uint256 _tailEmissionRate) external;
 }
