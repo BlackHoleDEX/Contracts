@@ -160,7 +160,7 @@ contract MinterUpgradeable is IMinter, OwnableUpgradeable {
     }
 
     // alternative to nudge(): the owner (multisig) passes the desired rate, which becomes
-    // the next tailEmissionRate consumed by update_period() (and then reset to MAX_BPS).
+    // the next tailEmissionRate consumed by update_period() (and then reset to DEFAULT_TAIL_RATE).
     // mutually exclusive with nudge(): once governance is live, only nudge() may set the rate.
     function updateTailEmissionRate(uint256 _tailEmissionRate) external onlyOwner {
         require(_gaugeManager.getBlackGovernor() == address(0), "governance live");
@@ -250,6 +250,6 @@ contract MinterUpgradeable is IMinter, OwnableUpgradeable {
     }
 
     function version() external view returns (string memory version) {
-        version  = "MinterUpgradable v1.1.3";
+        version  = "MinterUpgradable v1.1.4";
     }
 }

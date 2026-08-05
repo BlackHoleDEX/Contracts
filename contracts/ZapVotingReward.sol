@@ -81,11 +81,12 @@ contract ZapVotingReward is IZapVotingReward, ReentrancyGuard {
         require(ve.ownerOf(params.tokenId) == msg.sender, "NOT_OWNER");
 
         // 1. Flatten & dedupe the reward token set across all bribes.
+        //    No pre-claim check on params.swaps here: whether a swap is actually needed depends on
+        //    the post-claim deltas, not on the declared token list. A declared token that earns
+        //    nothing this epoch must not force the caller to supply a swap for it. If swaps are
+        //    genuinely missing, _validateSwaps reverts with MISSING_SWAP_FOR_TOKEN below.
         address[] memory rewardTokens = _flattenUnique(params.tokens);
         require(rewardTokens.length > 0, "NO_REWARD_TOKENS");
-        if (_needsSwap(rewardTokens, params.outputToken)) {
-            require(params.swaps.length > 0, "EMPTY_SWAPS");
-        }
 
         // 2. Snapshot the owner's balances before claiming.
         uint256[] memory beforeBal = new uint256[](rewardTokens.length);
@@ -117,8 +118,9 @@ contract ZapVotingReward is IZapVotingReward, ReentrancyGuard {
 
             if (rewardTokens[i] == params.outputToken) continue;
 
-            // Both skips leave a claimed reward in the owner's wallet. Log them, otherwise the
-            // only trace is a bribe->owner transfer with no matching transfer into this contract.
+            // Not enough allowance to pull: nothing is transferred, so the claimed reward simply
+            // stays in the owner's wallet. Log it, otherwise the only trace is a bribe->owner
+            // transfer with no matching transfer into this contract.
             uint256 allowance = token.allowance(msg.sender, address(this));
             if (allowance < delta) {
                 emit RewardTokenSkipped(msg.sender, rewardTokens[i], delta);
@@ -129,6 +131,10 @@ contract ZapVotingReward is IZapVotingReward, ReentrancyGuard {
             token.safeTransferFrom(msg.sender, address(this), delta);
             uint256 received = token.balanceOf(address(this)) - balBefore;
             if (received == 0) {
+                // Unlike the allowance skip above, the transfer succeeded here: `delta` has left
+                // the owner's wallet and none of it arrived. Only a token that consumes the whole
+                // amount in transfer fees behaves this way, and the value is unrecoverable — there
+                // is nothing left to swap or refund.
                 emit RewardTokenSkipped(msg.sender, rewardTokens[i], delta);
                 continue;
             }
@@ -268,13 +274,6 @@ contract ZapVotingReward is IZapVotingReward, ReentrancyGuard {
     function _contains(address[] memory arr, address t) private pure returns (bool) {
         for (uint256 i = 0; i < arr.length; i++) {
             if (arr[i] == t) return true;
-        }
-        return false;
-    }
-
-    function _needsSwap(address[] memory tokens, address outputToken) private pure returns (bool) {
-        for (uint256 i = 0; i < tokens.length; i++) {
-            if (tokens[i] != outputToken) return true;
         }
         return false;
     }
