@@ -38,6 +38,8 @@ interface IGaugeManagerBribes {
 ///              insufficient allowance are left in the owner's wallet after claiming.
 ///         Only the exact claimed delta is pulled (snapshot before/after the claim), so pre-existing
 ///         balances in the owner's wallet are never touched.
+///         A claim that needs no swapping — everything already in the output token, or nothing
+///         approved — succeeds and returns 0; only a claim that yields nothing at all reverts.
 contract ZapVotingReward is IZapVotingReward, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -79,11 +81,12 @@ contract ZapVotingReward is IZapVotingReward, ReentrancyGuard {
         require(ve.ownerOf(params.tokenId) == msg.sender, "NOT_OWNER");
 
         // 1. Flatten & dedupe the reward token set across all bribes.
+        //    No pre-claim check on params.swaps here: whether a swap is actually needed depends on
+        //    the post-claim deltas, not on the declared token list. A declared token that earns
+        //    nothing this epoch must not force the caller to supply a swap for it. If swaps are
+        //    genuinely missing, _validateSwaps reverts with MISSING_SWAP_FOR_TOKEN below.
         address[] memory rewardTokens = _flattenUnique(params.tokens);
         require(rewardTokens.length > 0, "NO_REWARD_TOKENS");
-        if (_needsSwap(rewardTokens, params.outputToken)) {
-            require(params.swaps.length > 0, "EMPTY_SWAPS");
-        }
 
         // 2. Snapshot the owner's balances before claiming.
         uint256[] memory beforeBal = new uint256[](rewardTokens.length);
@@ -101,28 +104,53 @@ contract ZapVotingReward is IZapVotingReward, ReentrancyGuard {
         address[] memory inputTokens = new address[](rewardTokens.length);
         uint256[] memory amounts = new uint256[](rewardTokens.length);
         uint256 count;
+        // `claimedAny` tracks whether the claim moved anything at all, which is separate from
+        // `count` (tokens pulled in for swapping). A claim paid entirely in the output token
+        // leaves count at 0 but is a successful claim, not a failure.
+        bool claimedAny;
         for (uint256 i = 0; i < rewardTokens.length; i++) {
             IERC20 token = IERC20(rewardTokens[i]);
 
             uint256 afterBal = token.balanceOf(msg.sender);
             uint256 delta = afterBal > beforeBal[i] ? afterBal - beforeBal[i] : 0;
             if (delta == 0) continue;
+            claimedAny = true;
 
             if (rewardTokens[i] == params.outputToken) continue;
 
+            // Not enough allowance to pull: nothing is transferred, so the claimed reward simply
+            // stays in the owner's wallet. Log it, otherwise the only trace is a bribe->owner
+            // transfer with no matching transfer into this contract.
             uint256 allowance = token.allowance(msg.sender, address(this));
-            if (allowance < delta) continue;
+            if (allowance < delta) {
+                emit RewardTokenSkipped(msg.sender, rewardTokens[i], delta);
+                continue;
+            }
 
             uint256 balBefore = token.balanceOf(address(this));
             token.safeTransferFrom(msg.sender, address(this), delta);
             uint256 received = token.balanceOf(address(this)) - balBefore;
-            if (received == 0) continue;
+            if (received == 0) {
+                // Unlike the allowance skip above, the transfer succeeded here: `delta` has left
+                // the owner's wallet and none of it arrived. Only a token that consumes the whole
+                // amount in transfer fees behaves this way, and the value is unrecoverable — there
+                // is nothing left to swap or refund.
+                emit RewardTokenSkipped(msg.sender, rewardTokens[i], delta);
+                continue;
+            }
 
             inputTokens[count] = rewardTokens[i];
             amounts[count] = received;
             count++;
         }
-        require(count > 0, "NOTHING_CLAIMED");
+        require(claimedAny, "NOTHING_CLAIMED");
+
+        // Nothing to swap: the rewards were already in the output token (or were left in the
+        // owner's wallet for lack of allowance). The claim stands — return instead of reverting.
+        if (count == 0) {
+            emit VotingRewardsZapped(msg.sender, params.tokenId, params.outputToken, 0);
+            return 0;
+        }
 
         // Shrink the over-allocated arrays down to the tokens actually claimed.
         assembly {
@@ -246,13 +274,6 @@ contract ZapVotingReward is IZapVotingReward, ReentrancyGuard {
     function _contains(address[] memory arr, address t) private pure returns (bool) {
         for (uint256 i = 0; i < arr.length; i++) {
             if (arr[i] == t) return true;
-        }
-        return false;
-    }
-
-    function _needsSwap(address[] memory tokens, address outputToken) private pure returns (bool) {
-        for (uint256 i = 0; i < tokens.length; i++) {
-            if (tokens[i] != outputToken) return true;
         }
         return false;
     }

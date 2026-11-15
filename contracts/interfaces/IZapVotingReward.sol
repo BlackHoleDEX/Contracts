@@ -29,5 +29,10 @@ interface IZapVotingReward {
 
     event DustRefunded(address indexed user, address indexed token, uint256 amount);
 
+    /// @notice A reward token was claimed but left out of the zap — either the owner's allowance
+    ///         did not cover the claimed delta, or the pull delivered nothing.
+    /// @param amount The claimed delta that was not swapped.
+    event RewardTokenSkipped(address indexed user, address indexed token, uint256 amount);
+
     function zapVotingRewards(ZapVotingRewardParams calldata params) external returns (uint256 amountOut);
 }
