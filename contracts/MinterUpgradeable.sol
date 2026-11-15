@@ -51,7 +51,15 @@ contract MinterUpgradeable is IMinter, OwnableUpgradeable {
 
     mapping(uint256 => bool) public proposals;
 
-    event Mint(address indexed sender, uint weekly, uint circulating_supply, uint circulating_emission);
+    // bounds for owner-driven tailEmissionRate updates (constants live in bytecode, not storage)
+    uint256 public constant MAX_TAIL_EMISSION_RATE = 10_300; // ceiling: max +3% weekly growth, matches WEEKLY_GROWTH
+    uint256 public constant MIN_TAIL_EMISSION_RATE = 9_700;  // floor: max ~3% weekly decay, never zero
+    uint256 public constant DEFAULT_TAIL_RATE = 9_900;       // -1%: applied each tail epoch unless the owner overrides it
+
+    // names match the values actually passed at the emit site; topic0 is unaffected by
+    // parameter names, so existing log filters keep matching
+    event Mint(address indexed sender, uint emission, uint rebase, uint circulating_supply);
+    event TailEmissionRateUpdated(address indexed updatedBy, uint256 oldTailEmissionRate, uint256 newTailEmissionRate);
 
     constructor() {}
 
@@ -151,6 +159,21 @@ contract MinterUpgradeable is IMinter, OwnableUpgradeable {
         proposals[_period] = true;
     }
 
+    // alternative to nudge(): the owner (multisig) passes the desired rate, which becomes
+    // the next tailEmissionRate consumed by update_period() (and then reset to DEFAULT_TAIL_RATE).
+    // mutually exclusive with nudge(): once governance is live, only nudge() may set the rate.
+    function updateTailEmissionRate(uint256 _tailEmissionRate) external onlyOwner {
+        require(_gaugeManager.getBlackGovernor() == address(0), "governance live");
+        require(epochCount >= TAIL_START, "not in tail");
+        require(
+            _tailEmissionRate >= MIN_TAIL_EMISSION_RATE && _tailEmissionRate <= MAX_TAIL_EMISSION_RATE,
+            "rate out of bounds"
+        );
+
+        emit TailEmissionRateUpdated(msg.sender, tailEmissionRate, _tailEmissionRate);
+        tailEmissionRate = _tailEmissionRate;
+    }
+
 
     // update period can only be called once per cycle (1 week)
     function update_period() external returns (uint) {
@@ -166,17 +189,24 @@ contract MinterUpgradeable is IMinter, OwnableUpgradeable {
             if (_tail) {
                 _emission = (_weekly * tailEmissionRate) / MAX_BPS;
                 weekly = _emission;
+                tailEmissionRate = DEFAULT_TAIL_RATE;
             } else {
                 _emission = _weekly;
                 if (epochCount < 15) {
                     _weekly = (_weekly * WEEKLY_GROWTH) / MAX_BPS;
-                } else {
+                } else if (epochCount < TAIL_START) {
+                    // no decay on TAIL_START itself: epoch 68 is shaped by tailEmissionRate
+                    // alone, so applying both here would double the step
                     _weekly = (_weekly * WEEKLY_DECAY) / MAX_BPS;
                 }
                 weekly = _weekly;
+                // seed the default entering the first tail epoch so the 68th epoch also
+                // decays by 1% unless the owner overrides it via updateTailEmissionRate()
+                if (epochCount == TAIL_START) {
+                    tailEmissionRate = DEFAULT_TAIL_RATE;
+                }
             }
 
-            tailEmissionRate = MAX_BPS;
 
             uint _rebase = calculate_rebase(_emission);
 
@@ -220,6 +250,6 @@ contract MinterUpgradeable is IMinter, OwnableUpgradeable {
     }
 
     function version() external view returns (string memory version) {
-        version  = "MinterUpgradable v1.1.2";
+        version  = "MinterUpgradable v1.1.4";
     }
 }
